@@ -1,0 +1,145 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy import stats
+from scipy.stats import norm, expon
+import matplotlib
+matplotlib.rcParams['font.family'] = 'DejaVu Sans'
+
+# ======== ДАННЫЕ ========
+data = {
+    'Country': ['Spain','United Kingdom','France','Italy','Türkiye','Germany','Portugal',
+        'Austria','Greece','Switzerland','Netherlands','Croatia','Poland','Denmark',
+        'Sweden','Belgium','Hungary','Czechia','Ireland','Luxembourg','Russian Federation',
+        'Norway','Romania','Israel','Albania','Bulgaria','Finland','Georgia','Cyprus',
+        'Slovenia','Armenia','Iceland','Serbia','Andorra','Kazakhstan','Uzbekistan',
+        'Malta','Bosnia and Herzegovina','Lithuania','Montenegro','Slovakia','Azerbaijan',
+        'Estonia','Latvia','Kyrgyzstan','Ukraine','Republic of Moldova','North Macedonia',
+        'San Marino','Tajikistan'],
+    'Receipts': [92.0,72.0,71.2,55.9,50.1,37.8,27.5,24.7,22.3,21.4,20.8,15.8,15.0,
+        10.5,9.9,9.6,7.9,7.8,7.5,6.8,6.8,6.5,5.4,5.2,4.5,4.2,4.1,4.1,3.7,3.6,
+        3.1,3.1,2.8,2.5,2.3,2.2,2.1,1.9,1.7,1.6,1.6,1.5,1.4,1.3,1.0,0.86,0.70,
+        0.60,0.41,0.02]
+}
+df = pd.DataFrame(data)
+x = df['Receipts'].values
+n = len(x)
+
+# ======== РИС. 1 — Столбчатая диаграмма ========
+fig, ax = plt.subplots(figsize=(14, 7))
+colors = ['#c0392b' if v > 50 else '#2980b9' if v > 10 else '#7f8c8d' for v in df['Receipts']]
+bars = ax.barh(df['Country'][::-1], df['Receipts'][::-1],
+               color=colors[::-1], edgecolor='white', linewidth=0.5)
+ax.set_xlabel('Поступления, млрд USD', fontsize=12)
+ax.set_title('Международные туристические поступления\nстран Европы, 2023 г.', fontsize=14, fontweight='bold')
+ax.tick_params(axis='y', labelsize=8)
+plt.tight_layout()
+plt.savefig('fig1_bar_chart.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+
+# ======== РИС. 2 — Гистограмма плотности ========
+x_mean = np.mean(x)
+s = np.std(x, ddof=0)
+k = 7
+h = (x.max() - x.min()) / k
+bins = [x.min() + i*h for i in range(k+1)]
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.hist(x, bins=bins, density=True, edgecolor='black', color='#3498db', alpha=0.7, label='Эмпирические данные')
+xr = np.linspace(-20, 100, 300)
+ax.plot(xr, norm.pdf(xr, x_mean, s), 'r-', lw=2, label=f'Норм. N({x_mean:.1f}, {s:.1f}²)')
+ax.set_xlabel('Поступления, млрд USD', fontsize=12)
+ax.set_ylabel('Плотность', fontsize=12)
+ax.set_title('Гистограмма плотности распределения', fontsize=14, fontweight='bold')
+ax.legend()
+ax.set_xlim(-10, 100)
+plt.tight_layout()
+plt.savefig('fig2_histogram.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+
+# ======== РИС. 3 — KDE + экспоненциальная кривая ========
+from scipy.stats import gaussian_kde
+kde = gaussian_kde(x, bw_method=0.3)
+
+fig, ax = plt.subplots(figsize=(10, 6))
+xr = np.linspace(0, 100, 500)
+ax.plot(xr, kde(xr), 'b-', lw=2, label='KDE (эмпирическая плотность)')
+lam = 1 / x_mean
+ax.plot(xr, expon.pdf(xr, scale=1/lam), 'r--', lw=2, label=f'Эксп. λ={lam:.4f}')
+ax.set_xlabel('Поступления, млрд USD', fontsize=12)
+ax.set_ylabel('Плотность', fontsize=12)
+ax.set_title('Сравнение KDE и экспоненциального распределения', fontsize=14, fontweight='bold')
+ax.legend()
+plt.tight_layout()
+plt.savefig('fig3_kde_exp.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+
+# ======== РИС. 4 — Q-Q plot ========
+fig, ax = plt.subplots(figsize=(8, 8))
+x_sorted = np.sort(x)
+n_pts = len(x_sorted)
+theoretical_q = expon.ppf(np.arange(1, n_pts+1) / (n_pts+1), scale=x_mean)
+ax.scatter(theoretical_q, x_sorted, c='#2980b9', edgecolors='black', s=40, zorder=3)
+lim = max(theoretical_q.max(), x_sorted.max()) * 1.1
+ax.plot([0, lim], [0, lim], 'r--', lw=1.5, label='Теоретическая прямая')
+ax.set_xlabel('Теоретические квантили (экспоненциальное)', fontsize=12)
+ax.set_ylabel('Выборочные квантили', fontsize=12)
+ax.set_title('Q-Q plot: данные vs экспоненциальное распределение', fontsize=14, fontweight='bold')
+ax.legend()
+plt.tight_layout()
+plt.savefig('fig4_qqplot.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+
+# Критерий Колмогорова-Смирнова
+D_stat, p_val = stats.kstest(x, 'expon', args=(0, x_mean))
+D_crit = 1.36 / np.sqrt(n)
+print(f"Колмогоров-Смирнов: D = {D_stat:.4f}, p-value = {p_val:.6f}, D_крит = {D_crit:.4f}")
+
+# ======== РИС. 5 — Гистограмма усечённой выборки ========
+x_trimmed = x[x >= 3.0]
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.hist(x_trimmed, bins=8, density=True, edgecolor='black', color='#27ae60', alpha=0.7)
+ax.set_xlabel('Поступления, млрд USD', fontsize=12)
+ax.set_ylabel('Плотность', fontsize=12)
+ax.set_title('Гистограмма плотности (страны с поступлениями ≥ 3 млрд USD)', fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.savefig('fig5_trimmed_hist.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+print(f"Усечённая выборка: n={len(x_trimmed)}, mean={np.mean(x_trimmed):.3f}, med={np.median(x_trimmed):.2f}, s={np.std(x_trimmed):.3f}")
+print(f"As = {stats.skew(x_trimmed, bias=True):.3f}, e = {stats.kurtosis(x_trimmed, bias=True):.3f}")
+print(f"CV = {np.std(x_trimmed)/np.mean(x_trimmed)*100:.1f}%")
+
+# ======== РИС. 6 — Boxplot + скрипичная диаграмма ========
+fig, ax = plt.subplots(figsize=(12, 5))
+vp = ax.violinplot(x, positions=[0], showmedians=False, showextrema=False, vert=False)
+for body in vp['bodies']:
+    body.set_facecolor('#a29bfe')
+    body.set_alpha(0.4)
+bp = ax.boxplot(x, positions=[0], vert=False, widths=0.3,
+                patch_artist=True, boxprops=dict(facecolor='#74b9ff', alpha=0.8),
+                medianprops=dict(color='red', linewidth=2),
+                flierprops=dict(marker='o', markerfacecolor='red', markersize=8))
+ax.set_xlabel('Поступления, млрд USD', fontsize=12)
+ax.set_title('Boxplot со скрипичной диаграммой', fontsize=14, fontweight='bold')
+ax.set_yticks([])
+# Подписи выбросов
+for flier in bp['fliers']:
+    for val in flier.get_xdata():
+        country = df.loc[df['Receipts']==val, 'Country'].values
+        if len(country) > 0:
+            ax.annotate(f'{country[0]} ({val})', xy=(val, 0.15), fontsize=7, ha='center')
+plt.tight_layout()
+plt.savefig('fig6_boxplot_violin.png', dpi=150, bbox_inches='tight', facecolor='white')
+plt.show()
+
+# ======== Доп. статистика для отчёта ========
+print("\n=== ОСНОВНАЯ СТАТИСТИКА ===")
+print(f"n = {n}")
+print(f"Σ = {np.sum(x):.2f}")
+print(f"x̄ = {x_mean:.3f}")
+print(f"s² = {np.var(x):.3f}")
+print(f"s = {s:.3f}")
+print(f"med = {np.median(x):.2f}")
+print(f"As = {stats.skew(x, bias=True):.3f}")
+print(f"e = {stats.kurtosis(x, bias=True):.3f}")
+print(f"CV = {s/x_mean*100:.1f}%")
